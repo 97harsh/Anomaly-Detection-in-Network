@@ -35,9 +35,9 @@ const regex eventtypep("eventtype=[a-zA-Z0-9_-]+");
 const regex srcipp("srcip=[0-9]{1,3}[.][0-9]{1,3}[.][0-9]{1,3}[.][0-9]{1,3}");
 const regex dstipp("dstip=[0-9]{1,3}[.][0-9]{1,3}[.][0-9]{1,3}[.][0-9]{1,3}");
 const regex dstportp("dstport=[0-9]+");
-//const regex srcportp("srcport=[0-9]+");
 const regex statusp("status=[a-zA-Z\"]+");
-/*datep=re.compile(r'date=\d{4}[-/]\d{2}[-/]\d{2}')
+/*const regex srcportp("srcport=[0-9]+");
+const regex datep("date=[0-9]{4}[-/][0-9]{2}[-/][0-9]{2}");
 const regex timep("time=[0-9]{2}:[0-9]{2}:[0-9]{2}");
 const regex levelp("level=[0-9a-zA-Z_-]+");
 const regex attacknamep("attackname=\".*?\"");
@@ -150,35 +150,3 @@ int main(int argc, char *argv[])
 	return 0;
 
 }
-/*int regex_searching(string s,vector<regex> r)
-{
-	
-	
-	if(outfile.is_open()) ///file open/close very costly
-	{
-		outfile<<(s.substr(0,32))<<","; //writing the time stamp composed of first 32 charecters 
-		for(int i=0;i<r.size();i++)
-		{
-			if(!regex_match(s,r[i]))
-			{
-
-				regex_search(s,temp,r[i]);
-				outfile<<regex_replace(temp.str(),equality,"")<<",";
-
-
-			}
-			else
-				outfile<<",";
-
-		}
-		outfile<<"\n";
-		outfile.close();
-	}
-	else
-	{
-		cout<<"unable to write to file";
-		exit(1);
-	}
-	return 0;
-
-}*/
