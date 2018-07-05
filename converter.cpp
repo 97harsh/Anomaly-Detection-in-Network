@@ -44,8 +44,8 @@ const regex attacknamep("attackname=\".*?\"");
 const regex srcintfp("srcintf=\"[0-9a-zA-Z_-]+\""); 
 const regex dstintfp("dstintf=\"[0-9a-zA-Z_-]+\"");
 sessionidp=re.compile(r'sessionid=\d{1,10}');
-policyidp=re.compile(r'policyid=\d+')
-dstcountryp=re.compile(r'dstcountry="[ \w]+"') #include white spaces w~[a-zA-Z0-9]so [ \w]+ works
+const regex policyidp("policyid=[0-9]+");
+const regex dstcountryp("dstcountry=\"[a-zA-Z0-9\s]+\""); #include white spaces w~[a-zA-Z0-9]so [ \w]+ works
 srccountryp=re.compile(r'srccountry="[ \w]+"')
 trandispp=re.compile(r'trandisp=\w+')
 servicep=re.compile(r'service=[/\w-]+')
@@ -70,9 +70,9 @@ rcvdpktp=re.compile(r'rcvdpkt=\d+')
 transipp=re.compile(r'transip=\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}')
 transportp=re.compile(r'transport=\d+')
 msgp=re.compile(r'msg="[ \w.:,]+"')
-rolep=re.compile(r'role=\w+')
-appp=re.compile(r'app=["/\w-]+')
-applistp=re.compile(r'applist="[\w-]+"')
+const regex rolep("role=[a-zA-A0-9]+");
+const regex appp("app=[\"a-zA-Z0-9-]+");
+const regex applistp("applist=\"[a-zA-Z0-9-]+\"");
 */
 const regex equality("[a-zA-Z0-9_-]+=");
 int regex_searching(string s,vector<regex> r);
@@ -81,7 +81,7 @@ int main(int argc, char *argv[])
 {
 	int i=0;
 	
-	vector<regex> regvec;
+	vector<regex> regvec; //Pushing regex into a vector as working with vectors is faster and more efficient than remembering individual regex names
 	smatch temp;
 	ofstream outfile;
 	outfile.open("./heatmaptry1.csv",ios::out);
