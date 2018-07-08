@@ -1,26 +1,5 @@
-/*
-SLCT version 0.05 - slct
-simple logfile clustering tool
 
-Copyright (C) 2003-2007 Risto Vaarandi
-
-This program is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation; either version 2
-of the License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-*/
-
-
-/* gcc -fno-stack-protector -z execstack -o bug bug.c for Disabling Buffer overflow Protection*/
+/* gcc -fno-stack-protector -z execstack -o slct slct.c for Disabling Buffer overflow Protection*/
 #include <sys/types.h> /* for system typedefs, e.g., time_t */
 #include <stdio.h>     /* for fopen(), fread(), etc. */
 #include <regex.h>     /* for regcomp() and regexec() */
@@ -111,6 +90,7 @@ struct word_freq_stat {
   wordnumber_t fives;
   wordnumber_t tens;
   wordnumber_t twenties;
+  wordnumber_t hundreds;
 };
 
 
@@ -120,7 +100,7 @@ char *DELIM, *FILTER;
 regex_t DELIM_REGEX, FILTER_REGEX;
 
 support_t SUPPORT;
-double PCTSUPPORT;
+float PCTSUPPORT;
 
 char JOIN;
 char REFINE;
@@ -532,6 +512,7 @@ wordnumber_t find_frequent_words(struct word_freq_stat *stat)
   stat->fives = 0;
   stat->tens = 0;
   stat->twenties = 0;
+  stat->hundreds=0;
 
   for (i = 0; i < WORDTABLESIZE; ++i) {
 
@@ -541,12 +522,17 @@ wordnumber_t find_frequent_words(struct word_freq_stat *stat)
     ptr = WORDTABLE[i];
 
     while (ptr) {
-
-      if (ptr->count == 1) { ++stat->ones; }
-      if (ptr->count <= 2) { ++stat->twos; }
-      if (ptr->count <= 5) { ++stat->fives; }
-      if (ptr->count <= 10) { ++stat->tens; }
-      if (ptr->count <= 20) { ++stat->twenties; }
+      if (ptr->count >= 100) {++stat->hundreds;}
+      else if (ptr->count >= 20) { ++stat->twenties; }
+      else if (ptr->count >= 10) { ++stat->tens; }
+      else if (ptr->count >= 5) { ++stat->fives; }
+      else if (ptr->count >= 2) { ++stat->twos; }
+      else if (ptr->count == 1) { ++stat->ones; }
+      
+      
+      
+      
+      
 
       if (ptr->count < SUPPORT) {
 
@@ -1317,16 +1303,257 @@ void free_clusters(void)
 }
 
 
+int parse_options(int argc, char **argv); //parse the options given to the program
+
+
+void print_usage(char *progname); // to print the default options of the program
+
+
+int main(int argc, char **argv)
+{
+  char logstr[MAXLOGMSGLEN];
+  tableindex_t effect; 
+  wordnumber_t number;
+  struct templelem *ptr;
+  struct word_freq_stat infrequent_words;
+
+  /* Default values for commandline options */
+
+  BYTEOFFSET = 0;
+  CLUSTERTABLESIZE = 0;
+  DELIM = 0;
+  FILTER = 0;
+  INITSEED = 1;
+  JOIN = 0;
+  //OUTLIERFILE = 0;
+  PCTSUPPORT = 0;
+  REFINE = 0;
+  SLICESIZE = 0;
+  SUPPORT = 0;
+  TEMPLATE = 0;
+  VECTORSIZE = 0;
+  WORDTABLESIZE = 100000;
+  
+  INPUTFILES = 0;
+
+  /* Parse commandline options */
+    
+  if (!parse_options(argc, argv)) {
+    print_usage(argv[0]);
+    exit(1);
+  }
+
+  if (!INPUTFILES) {
+    fprintf(stderr, "No input files specified\n");
+    print_usage(argv[0]);
+    exit(1);
+  }
+
+  if (DELIM) {  
+    if (regcomp(&DELIM_REGEX, DELIM, REG_EXTENDED)) {
+      fprintf(stderr, 
+        "Bad regular expression given with '-d' option %s \n", DELIM);
+      print_usage(argv[0]);
+      exit(1);
+    }
+  } else { 
+    regcomp(&DELIM_REGEX, "[ \t]+", REG_EXTENDED);
+  }
+    
+  if (FILTER  &&  regcomp(&FILTER_REGEX, FILTER, REG_EXTENDED)) {
+    fprintf(stderr, 
+      "Bad regular expression given with '-f' option %s \n", FILTER);
+    print_usage(argv[0]);
+    exit(1);
+  }
+  
+  if (INITSEED < 0) {
+    fprintf(stderr,
+      "'-i' option requires a positive number or zero as parameter\n");
+    print_usage(argv[0]);
+    exit(1);
+  }
+
+  if (SUPPORT <= 0  &&  PCTSUPPORT <=0) {
+    fprintf(stderr, 
+      "'-s' option requires a positive number as parameter\n");
+    print_usage(argv[0]);
+    exit(1);
+  }
+
+  for (ptr = TEMPLATE; ptr; ptr = ptr->next) {
+    if (!ptr->str  &&  (ptr->data < 0 || ptr->data > MAXPARANEXPR - 1)) {
+      fprintf(stderr, 
+        "'-t' option requires backreference variables to be in range $0..$%d\n",
+        MAXPARANEXPR - 1);
+      print_usage(argv[0]);
+      exit(1);
+    }
+  }
+
+  if (VECTORSIZE < 0) {
+    fprintf(stderr, 
+      "'-v' option requires a positive number or zero as parameter\n");
+    print_usage(argv[0]);
+    exit(1);
+  }
+
+  if (WORDTABLESIZE <= 0) {
+    fprintf(stderr, 
+      "'-w' option requires a positive number as parameter\n");
+    print_usage(argv[0]);
+    exit(1);
+  }
+
+  if (CLUSTERVECTORSIZE < 0) {
+    fprintf(stderr, 
+      "'-z' option requires a positive number or zero as parameter\n");
+    print_usage(argv[0]);
+    exit(1);
+  }
+
+  if (JOIN && CLUSTERVECTORSIZE) {
+    fprintf(stderr, 
+      "'-j' and '-z' options can't be used together\n");
+    print_usage(argv[0]);
+    exit(1);
+  }
+  
+  /* Do the work */
+
+  log_msg("Starting...");
+
+  srand(INITSEED);
+  VECTORSEED = rand();
+  CLUSTERVECTORSEED = rand();
+  WORDTABLESEED = rand();
+  CLUSTERTABLESEED = rand();
+  
+  if (VECTORSIZE) {
+    log_msg("Creating the word summary vector...");
+    VECTOR = (tableindex_t *) malloc(sizeof(tableindex_t) * VECTORSIZE);
+    if (!VECTOR)  { log_msg("malloc() failed!"); exit(1); }
+    effect = create_word_vector();
+    sprintf(logstr, "%llu slots in the word summary vector >= support threshold", 
+                    (unsigned long long) effect);
+    log_msg(logstr);
+  }
+
+  log_msg("Creating vocabulary...");
+  WORDTABLE = (struct elem **) malloc(sizeof(struct elem *) * WORDTABLESIZE);
+  if (!WORDTABLE)  { log_msg("malloc() failed!"); exit(1); }
+  number = create_vocabulary();
+  sprintf(logstr, "%llu words inserted into the vocabulary\n", 
+                  (unsigned long long) number);
+  log_msg(logstr);
+  
+  if (VECTORSIZE)  { free((void *) VECTOR); }
+  
+  log_msg("Finding frequent words from the vocabulary...");
+  WORDNUM = find_frequent_words(&infrequent_words);
+  sprintf(logstr, "%llu frequent words found", (unsigned long long) WORDNUM);
+  log_msg(logstr);  
+
+  sprintf(logstr, "%llu words in vocabulary occurring only once", 
+		  (unsigned long long) infrequent_words.ones);
+  log_msg(logstr);  
+  sprintf(logstr, "%llu words in vocabulary occurring 2 to 5 times", 
+		  (unsigned long long) infrequent_words.twos);
+  log_msg(logstr);  
+  sprintf(logstr, "%llu words in vocabulary occurring 5 to 10 times", 
+		  (unsigned long long) infrequent_words.fives);
+  log_msg(logstr);  
+  sprintf(logstr, "%llu words in vocabulary occurring 10 to 20 times", 
+		  (unsigned long long) infrequent_words.tens);
+  log_msg(logstr);  
+  sprintf(logstr, "%llu words in vocabulary occurring 20 to 100 times", 
+		  (unsigned long long) infrequent_words.twenties);
+  log_msg(logstr);
+  sprintf(logstr, "%llu words in vocabulary occurring 100 times or more\n", 
+		  (unsigned long long) infrequent_words.hundreds);    
+  log_msg(logstr);  
+
+  if (WORDNUM) {
+
+    if (CLUSTERVECTORSIZE) {
+      log_msg("Creating the cluster summary vector...");
+      CLUSTERVECTOR = 
+      (tableindex_t *) malloc(sizeof(tableindex_t) * CLUSTERVECTORSIZE);
+      if (!CLUSTERVECTOR)  { log_msg("malloc() failed!"); exit(1); }
+      effect = create_cluster_vector();
+      sprintf(logstr, "%llu slots in the cluster summary vector >= support threshold", 
+                      (unsigned long long) effect);
+      log_msg(logstr);
+    }
+
+    log_msg("Finding cluster candidates...");
+    if (!CLUSTERTABLESIZE)  { CLUSTERTABLESIZE = 100 * WORDNUM; }
+    CLUSTERTABLE = 
+    (struct elem **) malloc(sizeof(struct elem *) * CLUSTERTABLESIZE);
+    if (!CLUSTERTABLE)  { log_msg("malloc() failed!"); exit(1); }
+    number = create_cluster_candidates();
+    sprintf(logstr, "%llu cluster candidates found", 
+                    (unsigned long long) number);
+    log_msg(logstr);  
+
+    if (CLUSTERVECTORSIZE)  { free((void *) CLUSTERVECTOR); }
+    
+    log_msg("Finding clusters from the set of candidates...");
+    number = find_clusters();
+    sprintf(logstr, "%llu clusters found", (unsigned long long) number);
+    log_msg(logstr);  
+
+    if (number) {
+      if (REFINE) {
+        log_msg("Refining cluster descriptions and finding outliers...");
+        refine_clusters();
+      }
+      print_clusters();
+    }
+  
+  }
+  
+  log_msg("Analysis complete");
+  
+  free_table(WORDTABLE, WORDTABLESIZE);
+  free_table(CLUSTERTABLE, CLUSTERTABLESIZE);
+  
+  free_inputfiles();
+  free_template();
+  free_slices();
+  free_clusters();
+  
+  regfree(&DELIM_REGEX);
+  if (FILTER)  { regfree(&FILTER_REGEX); }
+
+  if (DELIM)  { free((void *) DELIM); }   
+  if (FILTER)  { free((void *) FILTER); } 
+  if (OUTLIERFILE)  { free((void *) OUTLIERFILE); } 
+
+  exit(0);
+}
+
+void print_usage(char *progname) {
+  fprintf(stderr, "\n");
+  fprintf(stderr, "Usage: %s [-b <byte offset>] [-c <clustertable size>]\n", 
+                  progname);
+  fprintf(stderr, "[-d <regexp>] [-f <regexp>] [-g <slice size>] [-i <seed>] [-j]\n");
+  fprintf(stderr, "[-o <outliers file>] [-r] [-t <template>] [-v <wordvector size>]\n");
+  fprintf(stderr, "[-w <wordtable size>] [-z <clustervector size>] -s <support>\n"); 
+  fprintf(stderr, "<input files>\n");
+}
+
 int parse_options(int argc, char **argv)
 {
-  extern char *optarg;
-  extern int optind;
+  extern char *optarg; // brought from unistd so as to find the value of for eg- 10 from 
+  extern int optind;   //"-s 10" i.e. the argument after the argument to -s by the use of extern
   int c, i, start, len;
   struct templelem *template;
   struct inputfile *ptr;
   char *addr;
+  char *msg;
 
-  while ((c = getopt(argc, argv, "b:c:d:f:g:i:jo:rs:t:v:w:z:")) != -1) {
+  while ((c = getopt(argc, argv, "b:c:d:f:g:i:j:o:rs:t:v:w:z:")) != -1) {
 
     switch(c) { 
     case 'b':
@@ -1358,6 +1585,8 @@ int parse_options(int argc, char **argv)
       OUTLIERFILE = (char *) malloc(strlen(optarg) + 1);
       if (!OUTLIERFILE)  { log_msg("malloc() failed!"); exit(1); }
       strcpy(OUTLIERFILE, optarg);
+      /*sprintf(msg,"Writing to file %s",OUTLIERFILE);
+      log_msg(msg);*/
       break;
     case 'r':
       REFINE = 1;
@@ -1434,259 +1663,4 @@ int parse_options(int argc, char **argv)
   }
   
   return 1;
-}
-
-
-void print_usage(char *progname) {
-  fprintf(stderr, "\n");
-  fprintf(stderr, "SLCT version 0.05, Copyright (C) 2003-2007 Risto Vaarandi\n");
-  fprintf(stderr, "Usage: %s [-b <byte offset>] [-c <clustertable size>]\n", 
-                  progname);
-  fprintf(stderr, "[-d <regexp>] [-f <regexp>] [-g <slice size>] [-i <seed>] [-j]\n");
-  fprintf(stderr, "[-o <outliers file>] [-r] [-t <template>] [-v <wordvector size>]\n");
-  fprintf(stderr, "[-w <wordtable size>] [-z <clustervector size>] -s <support>\n"); 
-  fprintf(stderr, "<input files>\n");
-}
-
-
-int main(int argc, char **argv)
-{
-  char logstr[MAXLOGMSGLEN];
-  tableindex_t effect; 
-  wordnumber_t number;
-  struct templelem *ptr;
-  struct word_freq_stat infrequent_words;
-
-  /* Default values for commandline options */
-
-  BYTEOFFSET = 0;
-  CLUSTERTABLESIZE = 0;
-  DELIM = 0;
-  FILTER = 0;
-  INITSEED = 1;
-  JOIN = 0;
-  OUTLIERFILE = 0;
-  PCTSUPPORT = 0;
-  REFINE = 0;
-  SLICESIZE = 0;
-  SUPPORT = 0;
-  TEMPLATE = 0;
-  VECTORSIZE = 0;
-  WORDTABLESIZE = 100000;
-  
-  INPUTFILES = 0;
-
-  /* Parse commandline options */
-    
-  if (!parse_options(argc, argv)) {
-    print_usage(argv[0]);
-    exit(1);
-  }
-
-  if (!INPUTFILES) {
-    fprintf(stderr, "No input files specified\n");
-    print_usage(argv[0]);
-    exit(1);
-  }
-
-  if (BYTEOFFSET < 0) {
-    fprintf(stderr, 
-      "'-b' option requires a positive number or zero as parameter\n");
-    print_usage(argv[0]);
-    exit(1);
-  }
-
-  if (CLUSTERTABLESIZE < 0) {
-    fprintf(stderr, 
-      "'-c' option requires a positive number or zero as parameter\n");
-    print_usage(argv[0]);
-    exit(1);
-  }
-
-  if (DELIM) {  
-    if (regcomp(&DELIM_REGEX, DELIM, REG_EXTENDED)) {
-      fprintf(stderr, 
-        "Bad regular expression given with '-d' option\n", DELIM);
-      print_usage(argv[0]);
-      exit(1);
-    }
-  } else { 
-    regcomp(&DELIM_REGEX, "[ \t]+", REG_EXTENDED);
-  }
-    
-  if (FILTER  &&  regcomp(&FILTER_REGEX, FILTER, REG_EXTENDED)) {
-    fprintf(stderr, 
-      "Bad regular expression given with '-f' option\n", FILTER);
-    print_usage(argv[0]);
-    exit(1);
-  }
-  
-  if (INITSEED < 0) {
-    fprintf(stderr,
-      "'-i' option requires a positive number or zero as parameter\n");
-    print_usage(argv[0]);
-    exit(1);
-  }
-
-  if (SLICESIZE < 0) {
-    fprintf(stderr, 
-      "'-g' option requires a positive number or zero as parameter\n");
-    print_usage(argv[0]);
-    exit(1);
-  }
-
-  if (SUPPORT <= 0  &&  PCTSUPPORT <=0) {
-    fprintf(stderr, 
-      "'-s' option requires a positive number as parameter\n");
-    print_usage(argv[0]);
-    exit(1);
-  }
-
-  for (ptr = TEMPLATE; ptr; ptr = ptr->next) {
-    if (!ptr->str  &&  (ptr->data < 0 || ptr->data > MAXPARANEXPR - 1)) {
-      fprintf(stderr, 
-        "'-t' option requires backreference variables to be in range $0..$%d\n",
-        MAXPARANEXPR - 1);
-      print_usage(argv[0]);
-      exit(1);
-    }
-  }
-
-  if (VECTORSIZE < 0) {
-    fprintf(stderr, 
-      "'-v' option requires a positive number or zero as parameter\n");
-    print_usage(argv[0]);
-    exit(1);
-  }
-
-  if (WORDTABLESIZE <= 0) {
-    fprintf(stderr, 
-      "'-w' option requires a positive number as parameter\n");
-    print_usage(argv[0]);
-    exit(1);
-  }
-
-  if (CLUSTERVECTORSIZE < 0) {
-    fprintf(stderr, 
-      "'-z' option requires a positive number or zero as parameter\n");
-    print_usage(argv[0]);
-    exit(1);
-  }
-
-  if (JOIN && CLUSTERVECTORSIZE) {
-    fprintf(stderr, 
-      "'-j' and '-z' options can't be used together\n");
-    print_usage(argv[0]);
-    exit(1);
-  }
-  
-  /* Do the work */
-
-  log_msg("Starting...");
-
-  srand(INITSEED);
-  VECTORSEED = rand();
-  CLUSTERVECTORSEED = rand();
-  WORDTABLESEED = rand();
-  CLUSTERTABLESEED = rand();
-  
-  if (VECTORSIZE) {
-    log_msg("Creating the word summary vector...");
-    VECTOR = (unsigned long *) malloc(sizeof(unsigned long) * VECTORSIZE);
-    if (!VECTOR)  { log_msg("malloc() failed!"); exit(1); }
-    effect = create_word_vector();
-    sprintf(logstr, "%llu slots in the word summary vector >= support threshold", 
-                    (unsigned long long) effect);
-    log_msg(logstr);
-  }
-
-  log_msg("Creating vocabulary...");
-  WORDTABLE = (struct elem **) malloc(sizeof(struct elem *) * WORDTABLESIZE);
-  if (!WORDTABLE)  { log_msg("malloc() failed!"); exit(1); }
-  number = create_vocabulary();
-  sprintf(logstr, "%llu words inserted into the vocabulary", 
-                  (unsigned long long) number);
-  log_msg(logstr);
-  
-  if (VECTORSIZE)  { free((void *) VECTOR); }
-  
-  log_msg("Finding frequent words from the vocabulary...");
-  WORDNUM = find_frequent_words(&infrequent_words);
-  sprintf(logstr, "%llu frequent words found", (unsigned long long) WORDNUM);
-  log_msg(logstr);  
-
-  sprintf(logstr, "%llu words in vocabulary occurring 1 time", 
-		  (unsigned long long) infrequent_words.ones);
-  log_msg(logstr);  
-  sprintf(logstr, "%llu words in vocabulary occurring 2 times or less", 
-		  (unsigned long long) infrequent_words.twos);
-  log_msg(logstr);  
-  sprintf(logstr, "%llu words in vocabulary occurring 5 times or less", 
-		  (unsigned long long) infrequent_words.fives);
-  log_msg(logstr);  
-  sprintf(logstr, "%llu words in vocabulary occurring 10 times or less", 
-		  (unsigned long long) infrequent_words.tens);
-  log_msg(logstr);  
-  sprintf(logstr, "%llu words in vocabulary occurring 20 times or less", 
-		  (unsigned long long) infrequent_words.twenties);
-  log_msg(logstr);  
-
-  if (WORDNUM) {
-
-    if (CLUSTERVECTORSIZE) {
-      log_msg("Creating the cluster summary vector...");
-      CLUSTERVECTOR = 
-      (unsigned long *) malloc(sizeof(unsigned long) * CLUSTERVECTORSIZE);
-      if (!CLUSTERVECTOR)  { log_msg("malloc() failed!"); exit(1); }
-      effect = create_cluster_vector();
-      sprintf(logstr, "%llu slots in the cluster summary vector >= support threshold", 
-                      (unsigned long long) effect);
-      log_msg(logstr);
-    }
-
-    log_msg("Finding cluster candidates...");
-    if (!CLUSTERTABLESIZE)  { CLUSTERTABLESIZE = 100 * WORDNUM; }
-    CLUSTERTABLE = 
-    (struct elem **) malloc(sizeof(struct elem *) * CLUSTERTABLESIZE);
-    if (!CLUSTERTABLE)  { log_msg("malloc() failed!"); exit(1); }
-    number = create_cluster_candidates();
-    sprintf(logstr, "%llu cluster candidates found", 
-                    (unsigned long long) number);
-    log_msg(logstr);  
-
-    if (CLUSTERVECTORSIZE)  { free((void *) CLUSTERVECTOR); }
-    
-    log_msg("Finding clusters from the set of candidates...");
-    number = find_clusters();
-    sprintf(logstr, "%llu clusters found", (unsigned long long) number);
-    log_msg(logstr);  
-
-    if (number) {
-      if (REFINE) {
-        log_msg("Refining cluster descriptions and finding outliers...");
-        refine_clusters();
-      }
-      print_clusters();
-    }
-  
-  }
-  
-  log_msg("Analysis complete");
-  
-  free_table(WORDTABLE, WORDTABLESIZE);
-  free_table(CLUSTERTABLE, CLUSTERTABLESIZE);
-  
-  free_inputfiles();
-  free_template();
-  free_slices();
-  free_clusters();
-  
-  regfree(&DELIM_REGEX);
-  if (FILTER)  { regfree(&FILTER_REGEX); }
-
-  if (DELIM)  { free((void *) DELIM); }
-  if (FILTER)  { free((void *) FILTER); }
-  if (OUTLIERFILE)  { free((void *) OUTLIERFILE); }
-
-  exit(0);
 }
