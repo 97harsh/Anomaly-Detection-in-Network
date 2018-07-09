@@ -1367,19 +1367,7 @@ int main(int argc, char **argv)
     exit(1);
   }
   
-  if (INITSEED < 0) {
-    fprintf(stderr,
-      "'-i' option requires a positive number or zero as parameter\n");
-    print_usage(argv[0]);
-    exit(1);
-  }
 
-  if (SUPPORT <= 0  &&  PCTSUPPORT <=0) {
-    fprintf(stderr, 
-      "'-s' option requires a positive number as parameter\n");
-    print_usage(argv[0]);
-    exit(1);
-  }
 
   for (ptr = TEMPLATE; ptr; ptr = ptr->next) {
     if (!ptr->str  &&  (ptr->data < 0 || ptr->data > MAXPARANEXPR - 1)) {
@@ -1391,26 +1379,6 @@ int main(int argc, char **argv)
     }
   }
 
-  if (VECTORSIZE < 0) {
-    fprintf(stderr, 
-      "'-v' option requires a positive number or zero as parameter\n");
-    print_usage(argv[0]);
-    exit(1);
-  }
-
-  if (WORDTABLESIZE <= 0) {
-    fprintf(stderr, 
-      "'-w' option requires a positive number as parameter\n");
-    print_usage(argv[0]);
-    exit(1);
-  }
-
-  if (CLUSTERVECTORSIZE < 0) {
-    fprintf(stderr, 
-      "'-z' option requires a positive number or zero as parameter\n");
-    print_usage(argv[0]);
-    exit(1);
-  }
 
   if (JOIN && CLUSTERVECTORSIZE) {
     fprintf(stderr, 
@@ -1541,6 +1509,7 @@ void print_usage(char *progname) {
   fprintf(stderr, "[-o <outliers file>] [-r] [-t <template>] [-v <wordvector size>]\n");
   fprintf(stderr, "[-w <wordtable size>] [-z <clustervector size>] -s <support>\n"); 
   fprintf(stderr, "<input files>\n");
+  exit(1);
 }
 
 int parse_options(int argc, char **argv)
@@ -1573,9 +1542,19 @@ int parse_options(int argc, char **argv)
       strcpy(FILTER, optarg);
       break;
     case 'g':
+      if(atoi(optarg)<0){
+        fprintf(stderr, 
+      "'-g' option requires a positive number or zero as parameter\n");
+        print_usage(argv[0]);
+      }
       SLICESIZE = atoi(optarg);
       break;
     case 'i':
+      if(atoi(optarg)<0){
+        fprintf(stderr,
+        "'-i' option requires a positive number or zero as parameter\n");
+        print_usage(argv[0]);
+      }
       INITSEED = atoi(optarg);
       break;
     case 'j':
@@ -1593,8 +1572,18 @@ int parse_options(int argc, char **argv)
       break;
     case 's':
       if (optarg[strlen(optarg) - 1] == '%') { 
+        if(atof(optarg)<=0){
+          fprintf(stderr, 
+      "'-s' option requires a positive number as parameter\n");
+          print_usage(argv[0]);
+        }
         PCTSUPPORT = atof(optarg); 
       } else { 
+        if(atoi(optarg)<=0){
+          fprintf(stderr, 
+      "'-s' option requires a positive number as parameter\n");
+          print_usage(argv[0]);
+        }
         SUPPORT = atoi(optarg); 
       }
       break;
@@ -1628,16 +1617,32 @@ int parse_options(int argc, char **argv)
       }
       break;
     case 'v':
+      if(atoi(optarg)<0){
+      fprintf(stderr, 
+      "'-v' option requires a positive number or zero as parameter\n");
+      print_usage(argv[0]);
+      }
       VECTORSIZE = atoi(optarg);
       break;
     case 'w':
+      if (atoi(optarg) <= 0) {
+    fprintf(stderr, 
+      "'-w' option requires a positive number as parameter\n");
+    print_usage(argv[0]);
+      }
       WORDTABLESIZE = atoi(optarg);
       break;
     case 'z':
+      if (atoi(optarg) < 0) {
+        fprintf(stderr, 
+          "'-z' option requires a positive number or zero as parameter\n");
+      print_usage(argv[0]);
+      }
       CLUSTERVECTORSIZE = atoi(optarg);
       break;
     case '?':
       return 0;
+      
     }
     
   }
